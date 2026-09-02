@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../patients/screens/patient_login_screen.dart';
 
+import '../doctors/screens/doctor_login_screen.dart';
+
 class RoleSelectionScreen extends StatelessWidget {
   const RoleSelectionScreen({super.key});
 
@@ -87,7 +89,12 @@ class RoleSelectionScreen extends StatelessWidget {
                 iconBackground: const Color(0xFFE5EEFF),
                 iconColor: const Color(0xFF3567B8),
                 onTap: () {
-                  _showComingSoon(context, 'Doctor');
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const DoctorLoginScreen(),
+                    ),
+                  );
                 },
               ),
 

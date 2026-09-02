@@ -399,4 +399,270 @@ class LocalStorageService {
 
     await prefs.remove(_bedBookingsKey);
   }
+    // ============================================================
+  // DOCTOR ACCOUNT
+  // ============================================================
+
+  static const String _doctorNameKey = 'doctor_name';
+  static const String _doctorEmailKey = 'doctor_email';
+  static const String _doctorPhoneKey = 'doctor_phone';
+  static const String _doctorPasswordKey = 'doctor_password';
+  static const String _doctorSpecializationKey =
+      'doctor_specialization';
+  static const String _doctorHospitalKey = 'doctor_hospital';
+  static const String _doctorLoggedInKey = 'doctor_logged_in';
+
+  static Future<void> saveDoctorAccount({
+    required String name,
+    required String email,
+    required String phone,
+    required String password,
+    String specialization = 'General Physician',
+    String hospital = 'HealthSync Hospital',
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+
+    await prefs.setString(_doctorNameKey, name);
+    await prefs.setString(_doctorEmailKey, email);
+    await prefs.setString(_doctorPhoneKey, phone);
+    await prefs.setString(_doctorPasswordKey, password);
+    await prefs.setString(
+      _doctorSpecializationKey,
+      specialization,
+    );
+    await prefs.setString(_doctorHospitalKey, hospital);
+    await prefs.setBool(_doctorLoggedInKey, false);
+  }
+
+  static Future<bool> hasDoctorAccount() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    return prefs.containsKey(_doctorEmailKey);
+  }
+
+  static Future<bool> loginDoctor({
+    required String emailOrPhone,
+    required String password,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+
+    final savedEmail = prefs.getString(_doctorEmailKey);
+    final savedPhone = prefs.getString(_doctorPhoneKey);
+    final savedPassword =
+        prefs.getString(_doctorPasswordKey);
+
+    if (savedPassword != password) {
+      return false;
+    }
+
+    final input = emailOrPhone.trim();
+
+    final matchesEmail =
+        savedEmail?.toLowerCase() == input.toLowerCase();
+
+    final matchesPhone = savedPhone == input;
+
+    if (!matchesEmail && !matchesPhone) {
+      return false;
+    }
+
+    await prefs.setBool(_doctorLoggedInKey, true);
+
+    return true;
+  }
+
+  static Future<bool> isDoctorLoggedIn() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    return prefs.getBool(_doctorLoggedInKey) ?? false;
+  }
+
+  static Future<void> logoutDoctor() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    await prefs.setBool(_doctorLoggedInKey, false);
+  }
+
+  static Future<String> getDoctorName() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    return prefs.getString(_doctorNameKey) ?? 'Doctor';
+  }
+
+  static Future<String> getDoctorEmail() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    return prefs.getString(_doctorEmailKey) ?? '';
+  }
+
+  static Future<String> getDoctorPhone() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    return prefs.getString(_doctorPhoneKey) ?? '';
+  }
+
+  static Future<String> getDoctorSpecialization() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    return prefs.getString(_doctorSpecializationKey) ??
+        'General Physician';
+  }
+
+  static Future<String> getDoctorHospital() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    return prefs.getString(_doctorHospitalKey) ??
+        'HealthSync Hospital';
+  }
+
+  static Future<void> updateDoctorProfile({
+    required String name,
+    required String phone,
+    required String specialization,
+    required String hospital,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+
+    await prefs.setString(_doctorNameKey, name);
+    await prefs.setString(_doctorPhoneKey, phone);
+    await prefs.setString(
+      _doctorSpecializationKey,
+      specialization,
+    );
+    await prefs.setString(_doctorHospitalKey, hospital);
+  }
+
+  static Future<void> updateDoctorPassword(
+    String password,
+  ) async {
+    final prefs = await SharedPreferences.getInstance();
+
+    await prefs.setString(
+      _doctorPasswordKey,
+      password,
+    );
+  }
+    // ============================================================
+  // PRESCRIPTIONS
+  // ============================================================
+
+  static const String _prescriptionsKey = 'doctor_prescriptions';
+
+  static Future<void> savePrescription({
+    required String patientName,
+    required String diagnosis,
+    required String medicine,
+    required String dosage,
+    required String instructions,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+
+    final existingPrescriptions =
+        prefs.getStringList(_prescriptionsKey) ?? [];
+
+    final prescription = {
+      'id': DateTime.now().millisecondsSinceEpoch.toString(),
+      'patientName': patientName,
+      'diagnosis': diagnosis,
+      'medicine': medicine,
+      'dosage': dosage,
+      'instructions': instructions,
+      'doctorName':
+          prefs.getString(_doctorNameKey) ?? 'Doctor',
+      'createdAt': DateTime.now().toIso8601String(),
+    };
+
+    existingPrescriptions.add(
+      jsonEncode(prescription),
+    );
+
+    await prefs.setStringList(
+      _prescriptionsKey,
+      existingPrescriptions,
+    );
+  }
+
+  static Future<List<Map<String, dynamic>>>
+      getPrescriptions() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    final savedPrescriptions =
+        prefs.getStringList(_prescriptionsKey) ?? [];
+
+    return savedPrescriptions.map((prescription) {
+      final decoded = jsonDecode(prescription);
+
+      return Map<String, dynamic>.from(decoded);
+    }).toList();
+  }
+
+  static Future<void> deletePrescription(
+    String prescriptionId,
+  ) async {
+    final prefs = await SharedPreferences.getInstance();
+
+    final savedPrescriptions =
+        prefs.getStringList(_prescriptionsKey) ?? [];
+
+    final updatedPrescriptions =
+        savedPrescriptions.where((item) {
+      final prescription =
+          Map<String, dynamic>.from(
+        jsonDecode(item),
+      );
+
+      return prescription['id'] != prescriptionId;
+    }).toList();
+
+    await prefs.setStringList(
+      _prescriptionsKey,
+      updatedPrescriptions,
+    );
+  }
+
+  static Future<void> clearPrescriptions() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    await prefs.remove(_prescriptionsKey);
+  }
+  // =====================================================
+// DOCTOR DIRECTORY (Visible to Patients)
+// =====================================================
+
+static const String _doctorDirectoryKey = 'doctor_directory';
+
+static Future<void> saveDoctorToDirectory() async {
+  final prefs = await SharedPreferences.getInstance();
+
+  final doctors = prefs.getStringList(_doctorDirectoryKey) ?? [];
+
+  final doctor = {
+    'name': prefs.getString(_doctorNameKey) ?? '',
+    'phone': prefs.getString(_doctorPhoneKey) ?? '',
+    'email': prefs.getString(_doctorEmailKey) ?? '',
+    'specialization':
+        prefs.getString(_doctorSpecializationKey) ?? '',
+    'hospital':
+        prefs.getString(_doctorHospitalKey) ?? '',
+  };
+
+  doctors.removeWhere((item) {
+    final d = jsonDecode(item);
+    return d['email'] == doctor['email'];
+  });
+
+  doctors.add(jsonEncode(doctor));
+
+  await prefs.setStringList(_doctorDirectoryKey, doctors);
+}
+
+static Future<List<Map<String, dynamic>>> getDoctors() async {
+  final prefs = await SharedPreferences.getInstance();
+
+  final doctors = prefs.getStringList(_doctorDirectoryKey) ?? [];
+
+  return doctors
+      .map((e) => Map<String, dynamic>.from(jsonDecode(e)))
+      .toList();
+}
 }
