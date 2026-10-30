@@ -1,12 +1,16 @@
+
 import 'package:flutter/material.dart';
 
 import 'role_selection_screen.dart';
+import '../super_admin/super_admin_login_screen.dart';
 
 class GetStartedScreen extends StatelessWidget {
   const GetStartedScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    const primaryColor = Color(0xFF35AFA0);
+
     return Scaffold(
       backgroundColor: const Color(0xFFF7FAF9),
       body: SafeArea(
@@ -15,7 +19,6 @@ class GetStartedScreen extends StatelessWidget {
           child: Column(
             children: [
               const Spacer(),
-
               Container(
                 width: 180,
                 height: 180,
@@ -25,13 +28,11 @@ class GetStartedScreen extends StatelessWidget {
                 ),
                 child: const Icon(
                   Icons.health_and_safety_rounded,
-                  color: Color(0xFF35AFA0),
+                  color: primaryColor,
                   size: 95,
                 ),
               ),
-
               const SizedBox(height: 38),
-
               const Text(
                 'HealthSync',
                 style: TextStyle(
@@ -39,9 +40,7 @@ class GetStartedScreen extends StatelessWidget {
                   fontWeight: FontWeight.bold,
                 ),
               ),
-
               const SizedBox(height: 12),
-
               Text(
                 'Smart Patient Records\n& Hospital Management',
                 textAlign: TextAlign.center,
@@ -51,9 +50,7 @@ class GetStartedScreen extends StatelessWidget {
                   color: Colors.grey.shade700,
                 ),
               ),
-
               const SizedBox(height: 18),
-
               Text(
                 'Find hospitals, doctors, appointments,\n'
                 'medical records and emergency services.',
@@ -64,9 +61,7 @@ class GetStartedScreen extends StatelessWidget {
                   color: Colors.grey.shade600,
                 ),
               ),
-
               const Spacer(),
-
               SizedBox(
                 width: double.infinity,
                 height: 58,
@@ -74,13 +69,13 @@ class GetStartedScreen extends StatelessWidget {
                   onPressed: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(
+                      MaterialPageRoute<void>(
                         builder: (_) => const RoleSelectionScreen(),
                       ),
                     );
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF35AFA0),
+                    backgroundColor: primaryColor,
                     foregroundColor: Colors.white,
                     elevation: 0,
                     shape: RoundedRectangleBorder(
@@ -103,9 +98,7 @@ class GetStartedScreen extends StatelessWidget {
                   ),
                 ),
               ),
-
               const SizedBox(height: 18),
-
               Text(
                 'Your health. Your records. One platform.',
                 style: TextStyle(
@@ -113,8 +106,26 @@ class GetStartedScreen extends StatelessWidget {
                   color: Colors.grey.shade500,
                 ),
               ),
-
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
+              TextButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute<void>(
+                      builder: (_) => const SuperAdminLoginScreen(),
+                    ),
+                  );
+                },
+                icon: const Icon(
+                  Icons.admin_panel_settings_outlined,
+                  size: 18,
+                ),
+                label: const Text('Super Admin Login'),
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.blueGrey,
+                ),
+              ),
+              const SizedBox(height: 4),
             ],
           ),
         ),

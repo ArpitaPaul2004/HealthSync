@@ -30,6 +30,7 @@ model User {
   role         Role     @default(PATIENT)
   specialization String?
   hospitalId   String?
+  hospital Hospital? @relation(fields: [hospitalId], references: [id], onDelete: SetNull)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   appointments Appointment[] @relation("PatientAppointments")
@@ -50,6 +51,7 @@ model Hospital {
   createdAt   DateTime @default(now())
   beds        Bed[]
   appointments Appointment[]
+  users User[]
 }
 model Bed {
   id         String @id @default(cuid())

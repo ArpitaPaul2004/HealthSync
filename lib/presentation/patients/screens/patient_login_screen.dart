@@ -41,10 +41,16 @@ class _PatientLoginScreenState extends State<PatientLoginScreen> {
       isLoggingIn = true;
     });
 
-    final success = await LocalStorageService.loginPatient(
-      emailOrPhone: emailController.text.trim(),
-      password: passwordController.text,
-    );
+    bool success = false;
+    String? loginError;
+    try {
+      success = await LocalStorageService.loginPatient(
+        emailOrPhone: emailController.text.trim(),
+        password: passwordController.text,
+      );
+    } catch (error) {
+      loginError = error.toString().replaceFirst('Exception: ', '');
+    }
 
     if (!mounted) return;
 
@@ -63,9 +69,9 @@ class _PatientLoginScreenState extends State<PatientLoginScreen> {
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text(
-            'Invalid email/mobile number or password.',
+            loginError ?? 'Invalid email/mobile number or password.',
           ),
           behavior: SnackBarBehavior.floating,
         ),

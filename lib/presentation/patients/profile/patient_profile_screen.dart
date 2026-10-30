@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/storage/local_storage_service.dart';
+import '../screens/patient_login_screen.dart';
 
 class PatientProfileScreen extends StatefulWidget {
   const PatientProfileScreen({super.key});
@@ -765,16 +766,15 @@ class _PatientProfileScreenState
 
             ElevatedButton(
               onPressed: () async {
-                await LocalStorageService
-                    .logoutPatient();
+                await LocalStorageService.logoutPatient();
 
                 if (!mounted) return;
-
                 Navigator.pop(dialogContext);
-
-                Navigator.of(context)
-                    .popUntil(
-                  (route) => route.isFirst,
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(
+                    builder: (_) => const PatientLoginScreen(),
+                  ),
+                  (route) => false,
                 );
               },
 
@@ -808,7 +808,7 @@ class _PatientProfileScreenState
           ),
 
           content: const Text(
-            'This will permanently remove your local patient account and appointments. This action cannot be undone.',
+            'This will permanently delete your patient account from HealthSync and remove local appointments. This action cannot be undone.',
           ),
 
           actions: [
@@ -824,20 +824,27 @@ class _PatientProfileScreenState
 
             ElevatedButton(
               onPressed: () async {
-                await LocalStorageService
-                    .clearAppointments();
-
-                await LocalStorageService
-                    .deletePatientAccount();
-
-                if (!mounted) return;
-
-                Navigator.pop(dialogContext);
-
-                Navigator.of(context)
-                    .popUntil(
-                  (route) => route.isFirst,
-                );
+                try {
+                  await LocalStorageService.deletePatientAccount();
+                  if (!mounted) return;
+                  Navigator.pop(dialogContext);
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(
+                      builder: (_) => const PatientLoginScreen(),
+                    ),
+                    (route) => false,
+                  );
+                } catch (error) {
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        error.toString().replaceFirst('Exception: ', ''),
+                      ),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
               },
 
               style: ElevatedButton.styleFrom(

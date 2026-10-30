@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class LocalStorageService {
@@ -12,6 +13,10 @@ class LocalStorageService {
   static const String _phoneKey = 'patient_phone';
   static const String _passwordKey = 'patient_password';
   static const String _loggedInKey = 'patient_logged_in';
+  static const String _authTokenKey = 'patient_auth_token';
+
+  // Android physical-device address for the local development backend.
+  static const String _apiBaseUrl = 'http://192.168.29.21:4000/api';
 
   static Future<void> savePatientAccount({
     required String name,
@@ -24,7 +29,8 @@ class LocalStorageService {
     await prefs.setString(_nameKey, name);
     await prefs.setString(_emailKey, email);
     await prefs.setString(_phoneKey, phone);
-    await prefs.setString(_passwordKey, password);
+    // The backend stores a bcrypt hash; do not keep the password in plaintext locally.
+    await prefs.remove(_passwordKey);
     await prefs.setBool(_loggedInKey, false);
   }
 
@@ -39,29 +45,51 @@ class LocalStorageService {
     required String password,
   }) async {
     final prefs = await SharedPreferences.getInstance();
+    final identifier = emailOrPhone.trim();
 
-    final savedEmail = prefs.getString(_emailKey);
-    final savedPhone = prefs.getString(_phoneKey);
-    final savedPassword = prefs.getString(_passwordKey);
+    final response = await http
+        .post(
+          Uri.parse('$_apiBaseUrl/auth/login'),
+          headers: const {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'email': identifier,
+            'password': password,
+            'role': 'PATIENT',
+          }),
+        )
+        .timeout(const Duration(seconds: 15));
 
-    if (savedPassword != password) {
-      return false;
+    if (response.statusCode != 200) {
+      if (response.statusCode == 401) return false;
+      String message = 'Unable to connect to HealthSync. Please try again.';
+      try {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map && decoded['error'] is String) {
+          message = decoded['error'] as String;
+        }
+      } catch (_) {}
+      throw Exception(message);
     }
 
-    final input = emailOrPhone.trim();
-
-    final matchesEmail =
-        savedEmail?.toLowerCase() == input.toLowerCase();
-
-    final matchesPhone = savedPhone == input;
-
-    if (!matchesEmail && !matchesPhone) {
-      return false;
+    final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+    final user = Map<String, dynamic>.from(decoded['user'] as Map);
+    final token = decoded['token'];
+    if (token is! String || token.isEmpty) {
+      throw Exception('The server did not return an authentication token.');
     }
 
+    await prefs.setString(_authTokenKey, token);
+    await prefs.setString(_nameKey, (user['name'] ?? 'Patient').toString());
+    await prefs.setString(_emailKey, (user['email'] ?? '').toString());
+    await prefs.setString(_phoneKey, (user['phone'] ?? '').toString());
+    await prefs.remove(_passwordKey);
     await prefs.setBool(_loggedInKey, true);
-
     return true;
+  }
+
+  static Future<String?> getPatientAuthToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_authTokenKey);
   }
 
   static Future<bool> isPatientLoggedIn() async {
@@ -90,24 +118,44 @@ class LocalStorageService {
 
   static Future<void> logoutPatient() async {
     final prefs = await SharedPreferences.getInstance();
-
     await prefs.setBool(_loggedInKey, false);
+    await prefs.remove(_authTokenKey);
   }
 
+  // Calls the authenticated backend first. Local data is cleared only after
+  // the server confirms deletion, so a network error cannot look successful.
   static Future<void> deletePatientAccount() async {
     final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString(_authTokenKey);
+    if (token == null || token.isEmpty) {
+      throw Exception('Please log in again before deleting your account.');
+    }
 
-    // Delete account information.
+    final response = await http
+        .delete(
+          Uri.parse('$_apiBaseUrl/auth/me'),
+          headers: {'Authorization': 'Bearer $token'},
+        )
+        .timeout(const Duration(seconds: 15));
+
+    if (response.statusCode != 200 && response.statusCode != 204) {
+      String message = 'The account could not be deleted from the server.';
+      try {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map && decoded['error'] is String) {
+          message = decoded['error'] as String;
+        }
+      } catch (_) {}
+      throw Exception(message);
+    }
+
     await prefs.remove(_nameKey);
     await prefs.remove(_emailKey);
     await prefs.remove(_phoneKey);
     await prefs.remove(_passwordKey);
     await prefs.remove(_loggedInKey);
-
-    // Delete appointments.
+    await prefs.remove(_authTokenKey);
     await prefs.remove(_appointmentsKey);
-
-    // Delete bed bookings.
     await prefs.remove(_bedBookingsKey);
   }
 
@@ -399,7 +447,8 @@ class LocalStorageService {
 
     await prefs.remove(_bedBookingsKey);
   }
-    // ============================================================
+
+  // ============================================================
   // DOCTOR ACCOUNT
   // ============================================================
 
@@ -411,6 +460,18 @@ class LocalStorageService {
       'doctor_specialization';
   static const String _doctorHospitalKey = 'doctor_hospital';
   static const String _doctorLoggedInKey = 'doctor_logged_in';
+  static const String _doctorAuthTokenKey = 'doctor_auth_token';
+
+  // ============================================================
+  // HOSPITAL ADMIN ACCOUNT
+  // ============================================================
+
+  static const String _hospitalAdminNameKey = 'hospital_admin_name';
+  static const String _hospitalAdminEmailKey = 'hospital_admin_email';
+  static const String _hospitalAdminLoggedInKey =
+      'hospital_admin_logged_in';
+  static const String _hospitalAdminAuthTokenKey =
+      'hospital_admin_auth_token';
 
   static Future<void> saveDoctorAccount({
     required String name,
@@ -420,12 +481,12 @@ class LocalStorageService {
     String specialization = 'General Physician',
     String hospital = 'HealthSync Hospital',
   }) async {
+    // Never store a plaintext password locally.
     final prefs = await SharedPreferences.getInstance();
-
     await prefs.setString(_doctorNameKey, name);
     await prefs.setString(_doctorEmailKey, email);
     await prefs.setString(_doctorPhoneKey, phone);
-    await prefs.setString(_doctorPasswordKey, password);
+    await prefs.remove(_doctorPasswordKey);
     await prefs.setString(
       _doctorSpecializationKey,
       specialization,
@@ -436,7 +497,6 @@ class LocalStorageService {
 
   static Future<bool> hasDoctorAccount() async {
     final prefs = await SharedPreferences.getInstance();
-
     return prefs.containsKey(_doctorEmailKey);
   }
 
@@ -446,71 +506,108 @@ class LocalStorageService {
   }) async {
     final prefs = await SharedPreferences.getInstance();
 
-    final savedEmail = prefs.getString(_doctorEmailKey);
-    final savedPhone = prefs.getString(_doctorPhoneKey);
-    final savedPassword =
-        prefs.getString(_doctorPasswordKey);
+    final response = await http
+        .post(
+          Uri.parse('$_apiBaseUrl/auth/login'),
+          headers: const {
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode({
+            'email': emailOrPhone.trim(),
+            'password': password,
+            'role': 'DOCTOR',
+          }),
+        )
+        .timeout(const Duration(seconds: 15));
 
-    if (savedPassword != password) {
+    if (response.statusCode == 401 || response.statusCode == 403) {
       return false;
     }
 
-    final input = emailOrPhone.trim();
-
-    final matchesEmail =
-        savedEmail?.toLowerCase() == input.toLowerCase();
-
-    final matchesPhone = savedPhone == input;
-
-    if (!matchesEmail && !matchesPhone) {
-      return false;
+    if (response.statusCode != 200) {
+      String message = 'Unable to connect to HealthSync.';
+      try {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map && decoded['error'] is String) {
+          message = decoded['error'] as String;
+        }
+      } catch (_) {}
+      throw Exception(message);
     }
 
+    final decoded =
+        jsonDecode(response.body) as Map<String, dynamic>;
+    final user =
+        Map<String, dynamic>.from(decoded['user'] as Map);
+    final token = decoded['token'];
+
+    if (token is! String || token.isEmpty) {
+      throw Exception(
+        'The server did not return an authentication token.',
+      );
+    }
+
+    await prefs.setString(_doctorAuthTokenKey, token);
+    await prefs.setString(
+      _doctorNameKey,
+      (user['name'] ?? 'Doctor').toString(),
+    );
+    await prefs.setString(
+      _doctorEmailKey,
+      (user['email'] ?? '').toString(),
+    );
+    await prefs.setString(
+      _doctorPhoneKey,
+      (user['phone'] ?? '').toString(),
+    );
+    await prefs.setString(
+      _doctorSpecializationKey,
+      (user['specialization'] ?? 'General Physician').toString(),
+    );
     await prefs.setBool(_doctorLoggedInKey, true);
 
     return true;
   }
 
+  static Future<String?> getDoctorAuthToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_doctorAuthTokenKey);
+  }
+
   static Future<bool> isDoctorLoggedIn() async {
     final prefs = await SharedPreferences.getInstance();
-
     return prefs.getBool(_doctorLoggedInKey) ?? false;
   }
 
   static Future<void> logoutDoctor() async {
     final prefs = await SharedPreferences.getInstance();
-
     await prefs.setBool(_doctorLoggedInKey, false);
+    await prefs.remove(_doctorAuthTokenKey);
   }
 
   static Future<String> getDoctorName() async {
     final prefs = await SharedPreferences.getInstance();
-
     return prefs.getString(_doctorNameKey) ?? 'Doctor';
   }
 
   static Future<String> getDoctorEmail() async {
     final prefs = await SharedPreferences.getInstance();
-
     return prefs.getString(_doctorEmailKey) ?? '';
   }
 
   static Future<String> getDoctorPhone() async {
     final prefs = await SharedPreferences.getInstance();
-
     return prefs.getString(_doctorPhoneKey) ?? '';
   }
 
   static Future<String> getDoctorSpecialization() async {
     final prefs = await SharedPreferences.getInstance();
-
     return prefs.getString(_doctorSpecializationKey) ??
         'General Physician';
   }
 
   static Future<String> getDoctorHospital() async {
     final prefs = await SharedPreferences.getInstance();
-
     return prefs.getString(_doctorHospitalKey) ??
         'HealthSync Hospital';
   }
@@ -522,26 +619,131 @@ class LocalStorageService {
     required String hospital,
   }) async {
     final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString(_doctorAuthTokenKey);
 
-    await prefs.setString(_doctorNameKey, name);
-    await prefs.setString(_doctorPhoneKey, phone);
+    if (token == null || token.isEmpty) {
+      throw Exception('Please log in again.');
+    }
+
+    final response = await http
+        .patch(
+          Uri.parse('$_apiBaseUrl/auth/me'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+          body: jsonEncode({
+            'name': name.trim(),
+            'phone': phone.trim(),
+            'specialization': specialization.trim(),
+          }),
+        )
+        .timeout(const Duration(seconds: 15));
+
+    if (response.statusCode != 200) {
+      String message = 'Could not update doctor profile.';
+      try {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map && decoded['error'] is String) {
+          message = decoded['error'] as String;
+        }
+      } catch (_) {}
+      throw Exception(message);
+    }
+
+    await prefs.setString(_doctorNameKey, name.trim());
+    await prefs.setString(_doctorPhoneKey, phone.trim());
     await prefs.setString(
       _doctorSpecializationKey,
-      specialization,
+      specialization.trim(),
     );
-    await prefs.setString(_doctorHospitalKey, hospital);
+
+    // Hospital remains local until we connect it to a real hospital ID.
+    await prefs.setString(_doctorHospitalKey, hospital.trim());
+  }
+
+  static Future<void> deleteDoctorAccount() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString(_doctorAuthTokenKey);
+
+    if (token == null || token.isEmpty) {
+      throw Exception('Please log in again before deleting your account.');
+    }
+
+    final response = await http
+        .delete(
+          Uri.parse('$_apiBaseUrl/auth/me'),
+          headers: {'Authorization': 'Bearer $token'},
+        )
+        .timeout(const Duration(seconds: 15));
+
+    if (response.statusCode != 200 &&
+        response.statusCode != 204) {
+      String message = 'Could not delete doctor account.';
+      try {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map && decoded['error'] is String) {
+          message = decoded['error'] as String;
+        }
+      } catch (_) {}
+      throw Exception(message);
+    }
+
+    for (final key in [
+      _doctorNameKey,
+      _doctorEmailKey,
+      _doctorPhoneKey,
+      _doctorPasswordKey,
+      _doctorSpecializationKey,
+      _doctorHospitalKey,
+      _doctorLoggedInKey,
+      _doctorAuthTokenKey,
+      _prescriptionsKey,
+      _doctorDirectoryKey,
+    ]) {
+      await prefs.remove(key);
+    }
   }
 
   static Future<void> updateDoctorPassword(
-    String password,
+    String currentPassword,
+    String newPassword,
   ) async {
     final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString(_doctorAuthTokenKey);
 
-    await prefs.setString(
-      _doctorPasswordKey,
-      password,
-    );
+    if (token == null || token.isEmpty) {
+      throw Exception('Please log in again.');
+    }
+
+    final response = await http
+        .patch(
+          Uri.parse('$_apiBaseUrl/auth/password'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+          body: jsonEncode({
+            'currentPassword': currentPassword,
+            'newPassword': newPassword,
+          }),
+        )
+        .timeout(const Duration(seconds: 15));
+
+    if (response.statusCode != 200) {
+      String message = 'Could not update password.';
+      try {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map && decoded['error'] is String) {
+          message = decoded['error'] as String;
+        }
+      } catch (_) {}
+      throw Exception(message);
+    }
+
+    await prefs.remove(_doctorPasswordKey);
   }
+
     // ============================================================
   // PRESCRIPTIONS
   // ============================================================
@@ -665,4 +867,106 @@ static Future<List<Map<String, dynamic>>> getDoctors() async {
       .map((e) => Map<String, dynamic>.from(jsonDecode(e)))
       .toList();
 }
+
+
+  // ============================================================
+  // HOSPITAL ADMIN AUTHENTICATION
+  // ============================================================
+
+  static Future<bool> loginHospitalAdmin({
+    required String emailOrPhone,
+    required String password,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+
+    final response = await http
+        .post(
+          Uri.parse('$_apiBaseUrl/auth/login'),
+          headers: const {
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode({
+            'email': emailOrPhone.trim(),
+            'password': password,
+            'role': 'HOSPITAL_ADMIN',
+          }),
+        )
+        .timeout(const Duration(seconds: 15));
+
+    if (response.statusCode == 401 ||
+        response.statusCode == 403) {
+      return false;
+    }
+
+    if (response.statusCode != 200) {
+      String message = 'Unable to connect to HealthSync.';
+
+      try {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map && decoded['error'] is String) {
+          message = decoded['error'] as String;
+        }
+      } catch (_) {}
+
+      throw Exception(message);
+    }
+
+    final decoded =
+        jsonDecode(response.body) as Map<String, dynamic>;
+
+    final user =
+        Map<String, dynamic>.from(decoded['user'] as Map);
+
+    final token = decoded['token'];
+
+    if (user['role'] != 'HOSPITAL_ADMIN') {
+      throw Exception('This account is not a Hospital Admin.');
+    }
+
+    if (token is! String || token.isEmpty) {
+      throw Exception(
+        'The server did not return an authentication token.',
+      );
+    }
+
+    await prefs.setString(_hospitalAdminAuthTokenKey, token);
+    await prefs.setString(
+      _hospitalAdminNameKey,
+      (user['name'] ?? 'Hospital Admin').toString(),
+    );
+    await prefs.setString(
+      _hospitalAdminEmailKey,
+      (user['email'] ?? '').toString(),
+    );
+    await prefs.setBool(_hospitalAdminLoggedInKey, true);
+
+    return true;
+  }
+
+  static Future<String?> getHospitalAdminAuthToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_hospitalAdminAuthTokenKey);
+  }
+
+  static Future<String> getHospitalAdminName() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_hospitalAdminNameKey) ?? 'Hospital Admin';
+  }
+
+  static Future<String> getHospitalAdminEmail() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_hospitalAdminEmailKey) ?? '';
+  }
+
+  static Future<bool> isHospitalAdminLoggedIn() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_hospitalAdminLoggedInKey) ?? false;
+  }
+
+  static Future<void> logoutHospitalAdmin() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_hospitalAdminLoggedInKey, false);
+    await prefs.remove(_hospitalAdminAuthTokenKey);
+  }
+
 }

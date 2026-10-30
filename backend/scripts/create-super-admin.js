@@ -4,40 +4,46 @@ import bcrypt from "bcryptjs";
 import { prisma } from "../src/db.js";
 
 async function main() {
+  const name = process.env.SUPER_ADMIN_NAME;
   const email = process.env.SUPER_ADMIN_EMAIL?.trim().toLowerCase();
   const password = process.env.SUPER_ADMIN_PASSWORD;
-  const name = process.env.SUPER_ADMIN_NAME || "HealthSync Super Admin";
 
-  if (!email || !password || password.length < 12) {
+  if (!name || !email || !password || password.length < 12) {
     throw new Error(
-      "Set SUPER_ADMIN_EMAIL and SUPER_ADMIN_PASSWORD (at least 12 characters) in .env"
+      "Set SUPER_ADMIN_NAME, SUPER_ADMIN_EMAIL and a password of at least 12 characters in backend/.env"
     );
   }
 
-  const passwordHash = await bcrypt.hash(password, 12);
-
-  const user = await prisma.user.upsert({
+  const existing = await prisma.user.findUnique({
     where: { email },
-    update: {
-      name,
-      passwordHash,
-      role: "SUPER_ADMIN",
-      hospitalId: null,
-    },
-    create: {
-      name,
+  });
+
+  if (existing) {
+    if (existing.role === "SUPER_ADMIN") {
+      console.log("A Super Admin with this email already exists.");
+      return;
+    }
+
+    throw new Error(
+      "This email already belongs to another account. Use a different email."
+    );
+  }
+
+  await prisma.user.create({
+    data: {
+      name: name.trim(),
       email,
-      passwordHash,
+      passwordHash: await bcrypt.hash(password, 12),
       role: "SUPER_ADMIN",
     },
   });
 
-  console.log("Super-admin account provisioned:", user.email);
+  console.log(`Super Admin created: ${email}`);
 }
 
 main()
   .catch((error) => {
-    console.error("Setup failed:", error.message);
+    console.error(error.message);
     process.exitCode = 1;
   })
   .finally(async () => {
