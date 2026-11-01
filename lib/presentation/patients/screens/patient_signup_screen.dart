@@ -63,12 +63,15 @@ class _PatientSignupScreenState extends State<PatientSignupScreen> {
         isCreatingAccount = false;
       });
 
-      // Move to OTP verification.
+      // Move to OTP verification, passing the details for backend registration.
       Navigator.push(
         context,
         MaterialPageRoute(
           builder: (_) => OtpVerificationScreen(
-            phoneNumber: phoneController.text.trim(),
+            phoneNumber: '+91${phoneController.text.trim()}',
+            name: nameController.text.trim(),
+            email: emailController.text.trim(),
+            password: passwordController.text,
           ),
         ),
       );
@@ -443,8 +446,8 @@ class _PatientSignupScreenState extends State<PatientSignupScreen> {
                       return 'Please create a password';
                     }
 
-                    if (value.length < 6) {
-                      return 'Password must contain at least 6 characters';
+                    if (value.length < 8) {
+                      return 'Password must contain at least 8 characters';
                     }
 
                     return null;

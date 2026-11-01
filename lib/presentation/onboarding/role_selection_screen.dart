@@ -1,3 +1,4 @@
+import '../hospital_admin/screens/hospital_admin_login_screen.dart';
 import 'package:flutter/material.dart';
 
 import '../patients/screens/patient_login_screen.dart';
@@ -107,9 +108,15 @@ class RoleSelectionScreen extends StatelessWidget {
                 iconBackground: const Color(0xFFFFEEE4),
                 iconColor: const Color(0xFFC66A35),
                 onTap: () {
-                  _showComingSoon(context, 'Hospital Admin');
-                },
-              ),
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) =>
+                            const HospitalAdminLoginScreen(),
+                      ),
+                    );
+                  },
+                ),
 
               // SUPER ADMIN
               _RoleCard(

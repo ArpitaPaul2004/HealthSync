@@ -1,3 +1,4 @@
+
 import 'package:flutter/material.dart';
 
 import '../../../core/storage/local_storage_service.dart';
@@ -12,11 +13,9 @@ class DoctorLoginScreen extends StatefulWidget {
       _DoctorLoginScreenState();
 }
 
-class _DoctorLoginScreenState
-    extends State<DoctorLoginScreen> {
+class _DoctorLoginScreenState extends State<DoctorLoginScreen> {
   final TextEditingController emailController =
       TextEditingController();
-
   final TextEditingController passwordController =
       TextEditingController();
 
@@ -31,13 +30,10 @@ class _DoctorLoginScreenState
   }
 
   Future<void> loginDoctor() async {
-    final emailOrPhone =
-        emailController.text.trim();
+    final identifier = emailController.text.trim();
+    final password = passwordController.text;
 
-    final password =
-        passwordController.text;
-
-    if (emailOrPhone.isEmpty) {
+    if (identifier.isEmpty) {
       showMessage('Please enter email or phone');
       return;
     }
@@ -47,66 +43,41 @@ class _DoctorLoginScreenState
       return;
     }
 
-    setState(() {
-      isLoading = true;
-    });
+    setState(() => isLoading = true);
 
     try {
-      final hasAccount =
-          await LocalStorageService.hasDoctorAccount();
-
-      if (!hasAccount) {
-        if (!mounted) return;
-
-        setState(() {
-          isLoading = false;
-        });
-
-        showMessage(
-          'Please create a doctor account first',
-        );
-
-        return;
-      }
-
-      final success =
-          await LocalStorageService.loginDoctor(
-        emailOrPhone: emailOrPhone,
+      final success = await LocalStorageService.loginDoctor(
+        emailOrPhone: identifier,
         password: password,
       );
 
       if (!mounted) return;
 
       if (!success) {
-        setState(() {
-          isLoading = false;
-        });
-
+        setState(() => isLoading = false);
         showMessage(
-          'Invalid doctor email/phone or password',
+          'Invalid doctor email/phone or password, '
+          'or the account is not authorized.',
         );
-
         return;
       }
 
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(
-          builder: (_) =>
-              const DoctorDashboardScreen(),
+          builder: (_) => const DoctorDashboardScreen(),
         ),
         (route) => false,
       );
-    } catch (e) {
+    } catch (error) {
       if (!mounted) return;
+      setState(() => isLoading = false);
 
-      setState(() {
-        isLoading = false;
-      });
-
-      showMessage(
-        'Something went wrong. Please try again.',
+      final message = error.toString().replaceFirst(
+        'Exception: ',
+        '',
       );
+      showMessage(message);
     }
   }
 
@@ -124,8 +95,7 @@ class _DoctorLoginScreenState
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) =>
-            const DoctorCreateAccountScreen(),
+        builder: (_) => const DoctorCreateAccountScreen(),
       ),
     );
   }
@@ -133,8 +103,7 @@ class _DoctorLoginScreenState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor:
-          const Color(0xFFF5F9F9),
+      backgroundColor: const Color(0xFFF5F9F9),
       appBar: AppBar(
         title: const Text('Doctor Login'),
         centerTitle: true,
@@ -145,20 +114,16 @@ class _DoctorLoginScreenState
           child: Column(
             children: [
               const SizedBox(height: 35),
-
               CircleAvatar(
                 radius: 42,
-                backgroundColor:
-                    Colors.teal.shade700,
+                backgroundColor: Colors.teal.shade700,
                 child: const Icon(
                   Icons.medical_services_rounded,
                   color: Colors.white,
                   size: 42,
                 ),
               ),
-
               const SizedBox(height: 20),
-
               const Text(
                 'Welcome, Doctor',
                 style: TextStyle(
@@ -166,9 +131,7 @@ class _DoctorLoginScreenState
                   fontWeight: FontWeight.bold,
                 ),
               ),
-
               const SizedBox(height: 8),
-
               Text(
                 'Sign in to manage your patients',
                 style: TextStyle(
@@ -176,43 +139,32 @@ class _DoctorLoginScreenState
                   color: Colors.grey.shade600,
                 ),
               ),
-
               const SizedBox(height: 35),
-
               TextField(
                 controller: emailController,
-                keyboardType:
-                    TextInputType.emailAddress,
+                keyboardType: TextInputType.emailAddress,
                 decoration: InputDecoration(
                   labelText: 'Email or Phone',
-                  prefixIcon: const Icon(
-                    Icons.person_outline,
-                  ),
+                  prefixIcon: const Icon(Icons.person_outline),
                   filled: true,
                   fillColor: Colors.white,
                   border: OutlineInputBorder(
-                    borderRadius:
-                        BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(14),
                     borderSide: BorderSide.none,
                   ),
                 ),
               ),
-
               const SizedBox(height: 16),
-
               TextField(
                 controller: passwordController,
                 obscureText: obscurePassword,
                 decoration: InputDecoration(
                   labelText: 'Password',
-                  prefixIcon: const Icon(
-                    Icons.lock_outline,
-                  ),
+                  prefixIcon: const Icon(Icons.lock_outline),
                   suffixIcon: IconButton(
                     onPressed: () {
                       setState(() {
-                        obscurePassword =
-                            !obscurePassword;
+                        obscurePassword = !obscurePassword;
                       });
                     },
                     icon: Icon(
@@ -224,39 +176,29 @@ class _DoctorLoginScreenState
                   filled: true,
                   fillColor: Colors.white,
                   border: OutlineInputBorder(
-                    borderRadius:
-                        BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(14),
                     borderSide: BorderSide.none,
                   ),
                 ),
               ),
-
               const SizedBox(height: 28),
-
               SizedBox(
                 width: double.infinity,
                 height: 54,
                 child: ElevatedButton(
-                  onPressed:
-                      isLoading ? null : loginDoctor,
-                  style:
-                      ElevatedButton.styleFrom(
-                    backgroundColor:
-                        Colors.teal.shade700,
-                    foregroundColor:
-                        Colors.white,
-                    shape:
-                        RoundedRectangleBorder(
-                      borderRadius:
-                          BorderRadius.circular(14),
+                  onPressed: isLoading ? null : loginDoctor,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.teal.shade700,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
                     ),
                   ),
                   child: isLoading
                       ? const SizedBox(
                           height: 22,
                           width: 22,
-                          child:
-                              CircularProgressIndicator(
+                          child: CircularProgressIndicator(
                             strokeWidth: 2,
                             color: Colors.white,
                           ),
@@ -265,77 +207,61 @@ class _DoctorLoginScreenState
                           'Login',
                           style: TextStyle(
                             fontSize: 16,
-                            fontWeight:
-                                FontWeight.bold,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
                 ),
               ),
-
               const SizedBox(height: 18),
-
               Row(
                 children: [
                   Expanded(
-                    child: Divider(
-                      color: Colors.grey.shade300,
-                    ),
+                    child: Divider(color: Colors.grey.shade300),
                   ),
                   Padding(
-                    padding:
-                        const EdgeInsets.symmetric(
+                    padding: const EdgeInsets.symmetric(
                       horizontal: 12,
                     ),
                     child: Text(
                       'OR',
                       style: TextStyle(
-                        color:
-                            Colors.grey.shade600,
+                        color: Colors.grey.shade600,
                       ),
                     ),
                   ),
                   Expanded(
-                    child: Divider(
-                      color: Colors.grey.shade300,
-                    ),
+                    child: Divider(color: Colors.grey.shade300),
                   ),
                 ],
               ),
-
               const SizedBox(height: 18),
-
               SizedBox(
                 width: double.infinity,
                 height: 54,
                 child: OutlinedButton(
                   onPressed: openCreateAccount,
                   style: OutlinedButton.styleFrom(
-                    foregroundColor:
-                        Colors.teal.shade700,
+                    foregroundColor: Colors.teal.shade700,
                     side: BorderSide(
                       color: Colors.teal.shade700,
                     ),
-                    shape:
-                        RoundedRectangleBorder(
-                      borderRadius:
-                          BorderRadius.circular(14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
                     ),
                   ),
                   child: const Text(
                     'Create Doctor Account',
                     style: TextStyle(
                       fontSize: 16,
-                      fontWeight:
-                          FontWeight.bold,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),
               ),
-
               const SizedBox(height: 18),
-
               Text(
-                'Doctor account is stored locally',
+                'Secure sign-in for authorized doctor accounts',
+                textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 12,
                   color: Colors.grey.shade500,
